@@ -1,8 +1,6 @@
 OPUS_DECODE_TEST_FILE_URL=https://fetch-stream-audio.anthum.com/audio/opus/decode-test-64kbps.opus
 OPUS_DECODE_TEST_FILE=tmp/decode-test-64kbps.opus
 
-NATIVE_OPUS_DIR=/usr/local/Cellar/opus/1.2.1
-NATIVE_OPUSFILE_DIR=/usr/local/Cellar/opusfile/0.10
 NATIVE_DECODER_TEST=tmp/opus_chunkdecoder_test
 
 LIBOPUS_DIR=src/opus
@@ -160,12 +158,18 @@ native-decode-test:
 #
 #   $ play --type raw --rate 48000 --endian little --encoding floating-point --bits 32 --channels 1 [PCM_FILENAME]
 #
+ifndef OPUS_DIR
+	$(error OPUS_DIR environment variable is required)
+endif
+ifndef OPUSFILE_DIR
+	$(error OPUSFILE_DIR environment variable is required)
+endif
 	@ mkdir -p tmp
 	@ clang \
 		-o "$(NATIVE_DECODER_TEST)" \
-		-I "$(NATIVE_OPUSFILE_DIR)/include/opus" \
-		-I "$(NATIVE_OPUS_DIR)/include/opus" \
-		"$(NATIVE_OPUSFILE_DIR)/lib/libopusfile.dylib" \
+		-I "$(OPUSFILE_DIR)/include/opus" \
+		-I "$(OPUS_DIR)/include/opus" \
+		"$(OPUSFILE_DIR)/lib/libopusfile.dylib" \
 		src/*.c
 
 	@ $(NATIVE_DECODER_TEST) tmp/decode-test-64kbps.opus
