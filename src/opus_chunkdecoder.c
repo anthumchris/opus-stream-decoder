@@ -1,5 +1,8 @@
 #include "opus_chunkdecoder.h"
 
+char* opus_chunkdecoder_version() {
+  return "opus chunkdecoder 1.0";
+}
 
 static int cb_read(OpusChunkDecoder *decoder, unsigned char *_ptr, int _nbytes) {
   // don't read from buffer if OggOpusFile not instantiated yet
@@ -132,10 +135,6 @@ OpusChunkDecoder *opus_chunkdecoder_create() {
 void opus_chunkdecoder_free(OpusChunkDecoder *decoder) {
   op_free(decoder->of);
   free(decoder);
-}
-
-char* opus_chunkdecoder_version() {
-  return "opus chunkdecoder 0.1";
 }
 
 void opus_chunkdecoder_deinterleave(float *interleaved, int total_samples, float *left, float *right) {
