@@ -139,7 +139,7 @@ $(LIBOGG_CONFIGURE):
 	cd $(LIBOGG_DIR); ./autogen.sh
 
 
-native-decode-test:
+native-decode-test: $(OPUS_DECODE_TEST_FILE)
 # ** For development only **
 #
 # This target is used to test the opus decoding functionality independent
