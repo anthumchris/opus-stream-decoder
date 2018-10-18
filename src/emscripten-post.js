@@ -85,18 +85,6 @@ OpusStreamDecoder.prototype.decode = function(uint8array) {
       decodedRightPtr, decodedRightArry;
 
   try {
-    // put source data to decode on Wasm HEAP and get pointer to it
-    var srcLen = uint8array.byteLength;
-    srcPointer = this.api.malloc(uint8array.BYTES_PER_ELEMENT * srcLen);
-    this.api.HEAPU8.set(uint8array, srcPointer);
-
-    // TODO throttle bytes received to 16k to prevent > 64k being enqueued at once
-    // (Firefox returns large local chunks during tests)
-
-    // enqueue bytes to decode. Fail on error
-    if (!this.api.enqueue(this._decoderPointer, srcPointer, srcLen))
-      throw Error('Could not enqueue bytes for decoding.  You may also have invalid Ogg Opus file.');
-
     // 120ms buffer recommended per http://opus-codec.org/docs/opusfile_api-0.7/group__stream__decoding.html
     var decodedPcmSize = 120*48*2; // 120ms @ 48 khz * 2 channels.
 
@@ -105,28 +93,46 @@ OpusStreamDecoder.prototype.decode = function(uint8array) {
     [decodedLeftPtr, decodedLeftArry] = this.createOutputArray(decodedPcmSize/2);
     [decodedRightPtr, decodedRightArry] = this.createOutputArray(decodedPcmSize/2);
 
-    // // continue to decode until no more bytes are left to decode
-    var samplesDecoded, totalSamplesDecoded = 0;
-    // var decodeStart = performance.now();
-    while (samplesDecoded = this.api.decode(
-      this._decoderPointer,
-      decodedInterleavedPtr,
-      decodedPcmSize,
-      decodedLeftPtr,
-      decodedRightPtr
-    )) {
-      // performance audits show 960 samples (20ms) of data being decoded per call
-      // console.log('decoded',(samplesDecoded/48000*1000).toFixed(2)+'ms in', (performance.now()-decodeStart).toFixed(2)+'ms');
+    // Enqueue/decode uint8array at 16k in intervals to prevent buffer overflow
+    // Required for https://github.com/AnthumChris/opus-stream-decoder/commit/52c7347
+    var sendMax = 16*1024, sendStart = 0, sendSize;
+    var srcLen = uint8array.byteLength;
 
-      totalSamplesDecoded+=samplesDecoded;
-      // return copies of decoded bytes because underlying buffers will be re-used
-      this.onDecode(new OpusStreamDecodedAudio(
-        decodedLeftArry.slice(0, samplesDecoded),
-        decodedRightArry.slice(0, samplesDecoded),
-        samplesDecoded
-      ));
+    // put uint8array 16k sends on Wasm HEAP and get pointer to it
+    srcPointer = this.api.malloc(uint8array.BYTES_PER_ELEMENT * sendMax);
 
-      // decodeStart = performance.now();
+    while (sendStart < srcLen) {
+      sendSize = Math.min(sendMax, srcLen-sendStart); // upper boundary for last iteration
+      this.api.HEAPU8.set(uint8array.subarray(sendStart, sendStart+sendSize), srcPointer);
+      sendStart += sendSize;
+
+      // enqueue bytes to decode. Fail on error
+      if (!this.api.enqueue(this._decoderPointer, srcPointer, sendSize))
+        throw Error('Could not enqueue bytes for decoding.  You may also have invalid Ogg Opus file.');
+
+      // // continue to decode until no more bytes are left to decode
+      var samplesDecoded, totalSamplesDecoded = 0;
+      // var decodeStart = performance.now();
+      while (samplesDecoded = this.api.decode(
+        this._decoderPointer,
+        decodedInterleavedPtr,
+        decodedPcmSize,
+        decodedLeftPtr,
+        decodedRightPtr
+      )) {
+        // performance audits show 960 samples (20ms) of data being decoded per call
+        // console.log('decoded',(samplesDecoded/48000*1000).toFixed(2)+'ms in', (performance.now()-decodeStart).toFixed(2)+'ms');
+
+        totalSamplesDecoded+=samplesDecoded;
+        // return copies of decoded bytes because underlying buffers will be re-used
+        this.onDecode(new OpusStreamDecodedAudio(
+          decodedLeftArry.slice(0, samplesDecoded),
+          decodedRightArry.slice(0, samplesDecoded),
+          samplesDecoded
+        ));
+
+        // decodeStart = performance.now();
+      }
     }
   } catch (e) {
     throw e;
