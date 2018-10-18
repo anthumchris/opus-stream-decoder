@@ -20,7 +20,7 @@ const decoder = new decoderModule.OpusStreamDecoder({onDecode});
 const opusInFile = args[2].startsWith('/')? args[2] : currentFolder+args[2];
 const outFolder = args[3].startsWith('/')? args[3] : currentFolder+args[3];
 
-const inFileStream = fs.createReadStream(opusInFile, {highWaterMark: 16*1024});
+const inFileStream = fs.createReadStream(opusInFile, {highWaterMark: 64*1024});
 
 const pcmOutLeftFile = outFolder+'/decoded-left.pcm';
 const pcmOutRightFile = outFolder+'/decoded-right.pcm';

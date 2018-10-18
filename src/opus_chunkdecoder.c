@@ -1,7 +1,7 @@
 #include "opus_chunkdecoder.h"
 
 char* opus_chunkdecoder_version() {
-  return "opus chunkdecoder 1.0";
+  return "opus chunkdecoder 1.1";
 }
 
 static int cb_read(OpusChunkDecoder *decoder, unsigned char *_ptr, int _nbytes) {
