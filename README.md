@@ -1,4 +1,4 @@
-`OpusStreamDecoder` is an Emscripten JavaScript WebAssembly (Wasm) library for immediately decoding Ogg Opus file streams in chunks without waiting for the complete file to download, copy, or read. [`libopusfile`](https://opus-codec.org/docs/opusfile_api-0.7/index.html) is the underlying C library used for decoding.  `OpusStreamDecoder` provides a lightweight JavaScript API for decoding Opus streams at near-native speeds.
+`OpusStreamDecoder` is an Emscripten JavaScript WebAssembly (Wasm) library for immediately decoding Ogg Opus file streams in chunks without waiting for the complete file to download, copy, or read. [`libopusfile`](https://opus-codec.org/docs/opusfile_api-0.7/index.html) is the underlying C library used for decoding.  `OpusStreamDecoder` provides a lightweight JavaScript API for decoding Opus streams in the browser at near-native speeds.
 
 _Note: This repository was forked from [AnthumChris/fetch-stream-audio](https://github.com/AnthumChris/fetch-stream-audio) to decouple `OpusStreamDecoder` as a standalone Wasm decoder.  It will be integrated back into demo as a git submodule for [fetch-stream-audio #4](https://github.com/AnthumChris/fetch-stream-audio/issues/4)._
 
@@ -27,7 +27,7 @@ Pre-compiled binaries and full examples are included in the `dist/` folder.  The
   // after free() is called, you could reuse the decoder for another file
   try { ... decoder.ready.then(_ => decoder.decode(UINT8_DATA_TO_DECODE) } ...
 
-  /* Receives decoded decoded Float32Array PCM audio in left/right arrays.
+  /* Receives decoded Float32Array PCM audio in left/right arrays.
    * sampleRate is always 48000 and both channels would always contain data if
    * samplesDecoded > 0.  Mono Opus files would decoded identically into both
    * left/right channels and multichannel Opus files would be downmixed to 2 channels.
