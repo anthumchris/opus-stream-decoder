@@ -1,0 +1,64 @@
+<html>
+  <head>
+    <title>Opus Stream SeekableDecoder Test</title>
+    <!-- <script src="opus-stream-decoder.js"></script> -->
+  </head>
+  <body>
+    View output in browser console.
+    <script>
+      'use strict'
+
+      let request = new Request('http://localhost/throttle/test-64kbps.opus')
+
+      fetch(request)
+      .then(r => r.arrayBuffer())
+      .then(buffer => {
+        // little-endian "OggS" int32 value
+        const oggMagicNumber = 1399285583;
+        const view = new DataView(buffer);
+        const pagesFound = [];
+        let offset = 0, fileStartOffset = 0;;
+
+        // require 22 bytes to read Ogg page header
+        while (offset < buffer.byteLength - 22) {
+          fileStartOffset= offset;
+
+          if (view.getUint32(offset, true) === oggMagicNumber) {
+            pagesFound.push(new OggPageHeader(view, offset, fileStartOffset));
+            offset+=28; // move cursor forward to next header (good enough to skip)
+          } else {
+            offset++;
+          }
+        }
+        console.log(pagesFound);
+      })
+
+      function OggPageHeader(view, viewOffset, fileStartOffset) {
+
+        this.start = fileStartOffset;
+        this.flags = view.getUint8(viewOffset+5, true);
+        this.granule = view.getUint32(viewOffset+6, true);
+        this.page = view.getUint32(viewOffset+18, true);
+
+        const totalSegments = view.getUint8(viewOffset+26, true);
+        this.segments = [];
+        for (let i=0; i<totalSegments; i++) {
+          this.segments.push(view.getUint8(viewOffset+27+i, true));
+        }
+      }
+
+      /* Ogg Page Header byte sequence
+
+          0-3   OggS
+          4     version
+          5     flags
+          6-13  granule
+          14-17 serial
+          18-21 page number
+          22-25 crc checksum
+          26    segments in page
+          27-   segment table
+       */
+    </script>
+  </body>
+</html>

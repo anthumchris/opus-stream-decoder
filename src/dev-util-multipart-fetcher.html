@@ -1,0 +1,89 @@
+<html>
+  <head>
+    <title>Multipart Fetcher</title>
+    <style>
+      body {
+        font-family: arial, sans-sarif;
+        text-align: center;
+      }
+      .boxes {
+        margin: 0 auto;
+        border: 1px solid #aaa;
+        max-width: calc(9px * 150);
+        display: flex;
+        flex-wrap: wrap;
+        padding: 2px;
+      }
+      .boxes > div {
+        width: 8px;
+        height: 8px;
+        display: inline-block;
+        margin: 1px;
+        background: #eee;
+        box-sizing: border-box;
+        border: 1px solid #ccc;
+      }
+      .boxes > div.active {
+        border: none;
+        background: green;
+      }
+    </style>
+  </head>
+  <body>
+    <div>
+      <h4><span id="url"></span></h4>
+      <h5><span id="read"></span> / <span id="total"></span></h5>
+    </div>
+    <div class="boxes"></div>
+
+    <script>
+      const cntr = document.querySelector('.boxes'),
+            elUrl = document.getElementById('url'),
+            elRead = document.getElementById('read'),
+            elTotal = document.getElementById('total'),
+            boxes = [],
+            url = 'http://localhost/1kbps/test-64kbps.opus';
+            // url = 'http://localhost/';
+
+      elUrl.innerHTML = url;
+
+      fetch(url, {
+        headers: {'Range': 'bytes=0-'}
+      })
+      .then(resp => {
+        const length = resp.headers.get('Content-Length'),
+              bytesPerBox = 16;
+
+        elTotal.innerHTML = length;
+        fillBoxes(Math.ceil(length/bytesPerBox));
+
+        const reader = resp.body.getReader();
+        let bytesRead = 0;
+        reader.read().then(function consume({done, value}) {
+          if (done) {
+            requestAnimationFrame(_ => {
+              boxes.slice(start, Math.ceil(bytesRead/bytesPerBox)).forEach(el => el.classList.add('active'))
+            })
+          } else {
+            const start = Math.floor(bytesRead/bytesPerBox);
+            bytesRead+=value.byteLength;
+            elRead.innerHTML = bytesRead;
+            const end = Math.floor(bytesRead/bytesPerBox);
+            requestAnimationFrame(_ => {
+              boxes.slice(start, end).forEach(el => el.classList.add('active'))
+            })
+            return reader.read().then(consume);
+          }
+        })
+      })
+
+      function fillBoxes(qty) {
+        for (let i=0;i<qty; i++) {
+          const el = document.createElement('div');
+          cntr.appendChild(el);
+          boxes.push(el);
+        }
+      }
+    </script>
+  </body>
+</html>
