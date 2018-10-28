@@ -28,7 +28,7 @@ default: build-dist
 .PHONY: native-decode-test
 
 build-dist: build-libopusfile $(WASM_MODULE_JS)
-	@ cp src/test-opus-stream-decoder* dist
+	@ cp src/test-*.{js,html} dist
 
 build-wasm-module:
 build-libopusfile: build-libopus build-libogg $(LIBOPUSFILE_LIB)
