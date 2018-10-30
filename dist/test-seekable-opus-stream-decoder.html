@@ -15,12 +15,18 @@
       'use strict'
 
       // let request = new Request('http://localhost/1kbps/test-64kbps.opus')
-      let request = new Request('http://localhost/nolimit/test-64kbps.opus')
+      // let request = new Request('http://localhost/nolimit/test-64kbps.opus')
+
+      // let request = new Request('http://localhost/1kbps/hyperspace-512kbs.opus'); // 512 VBR, 26,248,070 bytes
+      let request = new Request('http://localhost/nolimit/hyperspace-512kbs.opus'); // 512 VBR, 26,248,070 bytes
+
 
       const seekableDecoder = new SeekableOpusStreamDecoder({request, initData: {}});
-      seekableDecoder.ready.then(_ => console.log('decoder is ready'));
+      seekableDecoder.ready.then(_ => {
+        console.log(seekableDecoder);
+      });
 
-      function SeekableOpusStreamDecoder({request, headerSeekSize, headerSeekMax, initData}) {
+      function SeekableOpusStreamDecoder({request, initData, headerFetchLen, headerFetchMax, durationFetchLen, durationFetchMax}) {
         /* Ogg Page Header byte sequence
 
             0-3   "OggS" (1399285583)
@@ -35,12 +41,10 @@
          */
 
         // bytes required to read Ogg Page Header, we're reading up to page number
-        const oggPageHeaderSize = 22;
+        const oggPageHeaderSize = 27;
 
         // little-endian "OggS" int32 value;
         const oggMagicNumber = 1399285583;
-
-        this.request = request;
 
         if ('object' == typeof initData && ('headerPages', 'contentLength', 'duration') in initData) {
           this.headerBytes = initData.headerPages;
@@ -49,7 +53,7 @@
           this.ready = Promise.resolve();
         } else {
           this.ready = new Promise((resolve, reject) => {
-            getInitData()
+            fetchInitData(request)
             .then(({headerPages, contentLength, duration}) => {
               this.headerBytes = headerPages;
               this.contentLength = contentLength;
@@ -63,40 +67,32 @@
         }
 
         /* returns Promise that resolves with {headerPages, size, duration}
-             headers: Uint8array of first Ogg Opus page headers
-             size: total bites of file/url
+             headerPages: Uint8array of first Ogg Opus page headers
+             contentLength: total bites of file/url
              duration: time in milliseconds of playback
          */
-        function getInitData() {
-          let headerPagesResolve,
-              lastPageResolve;
-
-          const headersPromise = fetchInitData(),
-                lastPagePromise = new Promise(r => lastPageResolve = r);
-
-          return headersPromise;
-          // return Promise.all([headerPages, lastPage]);
-        }
-
-
         // TODO handle case where servers don't support Range requests and entire file starts to download
-        function fetchInitData() {
-          const headerSeekRequest = request.clone(), // clone because we're modifying it
-                headerSeekAbort = new AbortController(),  // cancels fetching after pages are found
-                pageHeadersFound = [];  // once we find first two we're done
+        function fetchInitData(request) {
+          // clone requests because we're modifying them
+          const headerSeekRequest = request.clone();
 
-          headerSeekSize = headerSeekSize || 864*1;  // HTTP Range fetch interval size
-          headerSeekMax = headerSeekMax || headerSeekSize*1; // stop fetching after this
+          const headerSeekAbort = new AbortController(),  // cancels fetching after pages are found
+                pageHeadersFound = [];  // list of page headers found
+
+          // Set default values for Range requests if not provided
+          headerFetchLen = headerFetchLen || 1024*1;
+          headerFetchMax = headerFetchMax || headerFetchLen*8;
 
           let totalHeaderBytesFetched = 0, // tracks total bytes fetched from server
               headerBytesFetched = new Uint8Array(0),
+              lastPagePromise, // instantiated after contentLength found
               contentLength = -1;          // file size obtained from Content-Range response header
 
           return new Promise((resolve, reject) => {
             return (function fetchHeaders() {
-              const fetchSize = Math.min(headerSeekSize, headerSeekMax-totalHeaderBytesFetched);
+              const fetchSize = Math.min(headerFetchLen, headerFetchMax-totalHeaderBytesFetched);
               if (fetchSize <= 0) {
-                throw new Error('Could not find Ogg Opus header pages within headerSeekMax '+headerSeekMax);
+                throw new Error('Could not find Ogg Opus header pages within headerFetchMax '+headerFetchMax);
               }
 
               // increase read buffer by new fetch size
@@ -111,6 +107,7 @@
                 // get contentLength after first response
                 if (contentLength === -1) {
                   contentLength = parseContentLength(response);
+                  lastPagePromise = fetchLastPage(contentLength);
                 }
 
                 const reader = response.body.getReader();
@@ -120,17 +117,15 @@
                   headerBytesFetched.set(value, totalHeaderBytesFetched);
                   totalHeaderBytesFetched += value.byteLength;
 
-                  const seekStart = totalHeaderBytesFetched - value.byteLength;
-                  const seekEnd = totalHeaderBytesFetched;
-                  seekHeaderPages(pageHeadersFound, headerDataView, seekStart, seekEnd);
+                  // rewind by oggPageHeaderSize to complete previous unread bytes
+                  const seekStart = Math.max(0, totalHeaderBytesFetched - value.byteLength - oggPageHeaderSize);
+
+                  const headers = findOggPageHeaders(headerDataView, seekStart, totalHeaderBytesFetched, seekStart, 3-pageHeadersFound.length);
+                  pageHeadersFound.push(...headers);
 
                   if (pageHeadersFound.length === 3) {
-                    console.log(pageHeadersFound);
                     headerSeekAbort.abort();
-                    resolve({
-                      contentLength,
-                      headerPages: headerBytesFetched.slice(0, pageHeadersFound[2].start)
-                    })
+                    resolve();
                   }
 
                   return reader.read().then(read);
@@ -143,27 +138,94 @@
                   reject(err);
               })
             })()
+          })
+          .then(_ => lastPagePromise)
+          .then(lastPage => {
+            // get ID header packet start position data per https://tools.ietf.org/html/rfc7845.html#section-3
+            const idHeaderStart = pageHeadersFound[0].filePos+28;
+            const idHeaderLen = headerBytesFetched[pageHeadersFound[0].filePos+27] // first/only segment
+            const idHeaderData = parseIdHeaderPacket(new DataView(headerBytesFetched.buffer, idHeaderStart, idHeaderLen));
+            const duration = (lastPage.granule - idHeaderData.preSkip) / 48000;
+
+            const headerPages = headerBytesFetched.slice(0, pageHeadersFound[2].filePos)
+
+            return {contentLength, headerPages, duration};
           });
+
+          /* last page's granule position is used to calculate duration
+           * fetch in chuncks from the end of the file until the last Ogg page is found
+           */
+          function fetchLastPage(contentLength) {
+            const durationRequest = request.clone();
+
+            durationFetchLen = durationFetchLen || 1024*2;
+            durationFetchMax = durationFetchMax || 1024*64; // max Ogg Page size
+
+            return new Promise(resolve => {
+              // left boundary of range from end of file
+              const leftBoundary = Math.max(contentLength-1-durationFetchMax, 0);
+
+              let readBuffer = new Uint8Array(0),
+                  rangeEnd = contentLength-1; // decrease this with each fetch()
+
+              return (function fetchFromEnd() {
+                if (rangeEnd <= leftBoundary) {
+                  throw new Error('Could not find last Ogg Opus page within durationFetchMax '+durationFetchMax);
+                }
+
+                const rangeStart = Math.max(rangeEnd-durationFetchLen+1, leftBoundary, 0);
+                durationRequest.headers.set('Range', `bytes=${rangeStart}-${rangeEnd}`);
+                // console.log('Range', durationRequest.headers.get('range'), 'size', rangeEnd-rangeStart+1);
+
+                let totalBytesFetched = 0;
+
+                return fetch(durationRequest)
+                .then(resp => resp.arrayBuffer())
+                .then(buffer => {
+                  // use first bytes from last fetch readBuffer to complete buffer's scan of oggPageHeaderSize
+                  const endBytes = readBuffer.slice(0, oggPageHeaderSize-1);
+                  readBuffer = new Uint8Array(buffer.byteLength + endBytes.byteLength);
+                  readBuffer.set(new Uint8Array(buffer));
+                  readBuffer.set(endBytes, buffer.byteLength);
+                  const pagesFound = findOggPageHeaders(new DataView(readBuffer.buffer), 0, readBuffer.byteLength, rangeStart);
+
+                  // resolve with last page found
+                  if (pagesFound.length) {
+                    return resolve(pagesFound.pop());
+                  }
+
+                  // set new range and repeat
+                  rangeEnd-= buffer.byteLength;
+                  return fetchFromEnd();
+                });
+
+              })()
+            });
+          }
         }
 
-        // find header page boundaries and add to pagesFound
-        function seekHeaderPages(pagesFound, dataView, offset, end) {
-          // rewind by oggPageHeaderSize to complete previous unread bytes
-          offset = Math.max(0, offset-oggPageHeaderSize);
+        // returns an array of all Ogg Page headers found within dataView
+        function findOggPageHeaders(dataView, dataOffset, dataLen, fileStartPos, stopAfter) {
+          const headers = [];
 
           // require oggPageHeaderSize bytes to read Ogg page header
-          while (offset < end - oggPageHeaderSize) {
-            if (dataView.getUint32(offset, true) === oggMagicNumber) {
-              pagesFound.push(new OggPageHeader(dataView, offset));
+          let startOffset = dataOffset;
+          while (dataOffset < dataLen - oggPageHeaderSize) {
+            if (dataView.getUint32(dataOffset, true) === oggMagicNumber) {
+              const header = new OggPageHeader(dataView, dataOffset, fileStartPos+dataOffset-startOffset);
+              console.log('Ogg page found:', header);
+              headers.push(header);
 
               // we're done if we found 3 pages
-              if (pagesFound.length === 3) return;
+              if (stopAfter && headers.length === stopAfter) break;
 
-              offset+=28; // fast forward through found header
+              dataOffset+=28; // fast forward through found header
             } else {
-              offset++;
+              dataOffset++;
             }
           }
+
+          return headers;
         }
 
         // Parses file size from Content-Range header (e.g. 'bytes 0-1024/56000');
@@ -189,23 +251,35 @@
         return newArray;
       }
 
-      function OggPageHeader(view, viewOffset) {
+      // parse page header per https://tools.ietf.org/html/rfc3533#section-6
+      function OggPageHeader(view, viewOffset, posFromFileStart) {
+        this.filePos = posFromFileStart;
+        this.filePosHex = posFromFileStart.toString(16); // used for debugging
 
-        this.start = viewOffset;
-        this.flags = view.getUint8(viewOffset+5, true);
+        // TODO this shoudl be read as 64-bit, which isn't supported
         this.granule = view.getUint32(viewOffset+6, true);
 
-        // TODO this is probably not needed
+        this.serial = view.getUint32(viewOffset+14, true);
         this.page = view.getUint32(viewOffset+18, true);
-
-        // TODO is this still needed? perhaps for more accurate duration seeking
-        // const totalSegments = view.getUint8(viewOffset+26, true);
-        // this.segments = [];
-        // for (let i=0; i<totalSegments; i++) {
-        //   this.segments.push(view.getUint8(viewOffset+27+i, true));
-        // }
+        this.flags = view.getUint8(viewOffset+5, true);
+        this.pageSegments = view.getUint8(viewOffset+26, true);
       }
 
+      // parses ID header and returns info per https://tools.ietf.org/html/rfc7845.html#section-5.1
+      function parseIdHeaderPacket(dataView) {
+        const magicSignature = Array.from('OpusHead').map(c => c.charCodeAt(0));
+        if (!magicSignature.every((val, i) => val === dataView.getUint8(i)))
+          throw Error('OpusHead magic signature not found in header page');
+
+        return {
+          version: dataView.getUint8(8),
+          channels: dataView.getUint8(9),
+          preSkip: dataView.getUint16(10, true),
+          inputSampleRate: dataView.getUint32(12, true),
+          outputGain: dataView.getInt16(16, true),
+          channelMappingFamily: dataView.getUint8(14, true),
+        };
+      }
     </script>
   </body>
 </html>
