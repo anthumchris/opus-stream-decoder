@@ -256,8 +256,7 @@
         this.filePos = posFromFileStart;
         this.filePosHex = posFromFileStart.toString(16); // used for debugging
 
-        // TODO this shoudl be read as 64-bit, which isn't supported
-        this.granule = view.getUint32(viewOffset+6, true);
+        this.granule = view.getUint64(viewOffset+6, true);
 
         this.serial = view.getUint32(viewOffset+14, true);
         this.page = view.getUint32(viewOffset+18, true);
@@ -279,6 +278,21 @@
           outputGain: dataView.getInt16(16, true),
           channelMappingFamily: dataView.getUint8(14, true),
         };
+      }
+
+      // getUint64() polyfill from https://stackoverflow.com/questions/53103695/
+      DataView.prototype.getUint64 = function(byteOffset, littleEndian) {
+        // split 64-bit number into two 32-bit parts
+        const left =  this.getUint32(byteOffset, littleEndian);
+        const right = this.getUint32(byteOffset+4, littleEndian);
+
+        // combine the two 32-bit values
+        const combined = littleEndian? left + 2**32*right : 2**32*left + right;
+
+        if (!Number.isSafeInteger(combined))
+          console.warn(combined, 'exceeds MAX_SAFE_INTEGER. Precision may be lost');
+
+        return combined;
       }
     </script>
   </body>
