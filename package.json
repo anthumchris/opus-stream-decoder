@@ -1,0 +1,33 @@
+{
+  "name": "opus-stream-decoder",
+  "version": "1.2.2",
+  "description": "Decode Opus audio streams immediately in chunks",
+  "main": "dist/opus-stream-decoder.js",
+  "scripts": {
+    "test": "make test-wasm-module"
+  },
+  "files": [
+    "dist/*",
+    "Makefile"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AnthumChris/opus-stream-decoder.git"
+  },
+  "keywords": [
+    "Opus",
+    "audio",
+    "decoder",
+    "stream",
+    "streams",
+    "Ogg Opus",
+    "WebAssembly",
+    "Wasm"
+  ],
+  "author": "AnthumChris",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/AnthumChris/opus-stream-decoder/issues"
+  },
+  "homepage": "https://github.com/AnthumChris/opus-stream-decoder#readme"
+}
