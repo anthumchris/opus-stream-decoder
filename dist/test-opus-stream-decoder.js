@@ -41,7 +41,8 @@ inFileStream
     inFileStram.destroy(err);
   }
 })
-.on('end', _ => {
+.on('end', async _ => {
+  await decoder.ready;
   decoder.free();
   if (!totalSamplesDecoded) {
     console.error('File could not be decoded.')
