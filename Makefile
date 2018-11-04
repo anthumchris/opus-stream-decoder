@@ -95,6 +95,7 @@ $(WASM_MODULE_JS):
 			, '_opus_chunkdecoder_enqueue' \
 			, '_opus_chunkdecoder_decode_float_stereo_deinterleaved' \
 		]" \
+		--pre-js 'src/emscripten-pre.js' \
 		--post-js 'src/emscripten-post.js' \
 		-I "$(LIBOPUS_DIR)/include" \
 		-I "$(LIBOGG_DIR)/include" \

@@ -1,14 +1,10 @@
 {
   "name": "opus-stream-decoder",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "Decode Opus audio streams immediately in chunks",
   "main": "dist/opus-stream-decoder.js",
-  "scripts": {
-    "test": "make test-wasm-module"
-  },
   "files": [
-    "dist/*",
-    "Makefile"
+    "dist/*"
   ],
   "repository": {
     "type": "git",
@@ -20,6 +16,8 @@
     "decoder",
     "stream",
     "streams",
+    "libopus",
+    "libopusfile",
     "Ogg Opus",
     "WebAssembly",
     "Wasm"
