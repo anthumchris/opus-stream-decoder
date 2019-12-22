@@ -71,6 +71,16 @@ $ make
 
 Most of the work and time will be spent compiling the `libopusfile` C library and its dependencies `libopus` and `libogg`.  After those are built, the `OpusStreamDecoder` Emscripten Module builds in a few seconds.  `$ make clean` will not require rebuilding `libopusfile`, but `$ make clean-all` will.
 
+### Build Errors
+
+#### Error: "autoreconf: command not found"
+
+`$ brew install automake`
+
+#### "./autogen.sh: No such file or directory"
+
+`$ brew install autogen`
+
 # Tests & Examples
 
 Two tests exist that will decode an Ogg Opus File with `OpusStreamDecoder`.  Both tests output "decoded _N_ samples." on success.
