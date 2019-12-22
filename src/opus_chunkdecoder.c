@@ -44,7 +44,7 @@ static int cb_read(OpusChunkDecoder *decoder, unsigned char *_ptr, int _nbytes) 
  * Returns 1 or 0 for success or error
  */
 int opus_chunkdecoder_enqueue(OpusChunkDecoder *decoder, unsigned char *data, size_t size) {
-  int bufferMax = sizeof(decoder->buffer._data),
+  ssize_t bufferMax = sizeof(decoder->buffer._data),
       bufferUsed = decoder->buffer.num_unread;
 
   // fprintf(stdout, "Undecoded: %zd\n", bufferUsed);
@@ -83,7 +83,7 @@ int opus_chunkdecoder_enqueue(OpusChunkDecoder *decoder, unsigned char *data, si
     );
 
     if (err == 0) {
-      fprintf(stderr, "OggOpusFile discovered with %zd bytes\n", decoder->buffer.num_unread);
+      fprintf(stderr, "OggOpusFile discovered with %d bytes\n", decoder->buffer.num_unread);
 
       // OggOpusFile instantiated.  Reset unread buffer count
       decoder->buffer.num_unread = 0;
