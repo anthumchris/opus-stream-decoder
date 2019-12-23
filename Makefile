@@ -1,7 +1,7 @@
 WASM_MODULE_JS=dist/opus-stream-decoder.js
 WASM_LIB=tmp/lib.bc
 OGG_CONFIG_TYPES=src/ogg/include/ogg/config_types.h
-OPUS_DECODE_TEST_FILE_URL=https://fetch-stream-audio.anthum.com/audio/opus/decode-test-64kbps.opus
+OPUS_DECODE_TEST_FILE_URL=https://fetch-stream-audio.anthum.com/audio/save/opus-stream-decoder-test.opus
 OPUS_DECODE_TEST_FILE=tmp/decode-test-64kbps.opus
 NATIVE_DECODER_TEST=tmp/opus_chunkdecoder_test
 CONFIGURE_LIBOPUS=src/opus/configure
@@ -69,6 +69,8 @@ wasm: wasmlib
 	@ echo "+-------------------------------------------------------------------------------"
 	@ echo "|"
 	@ echo "|  Successfully built: $(WASM_MODULE_JS)"
+	@ echo "|"
+	@ echo "|  run \"$$ make test-wasm-module\" to verify"
 	@ echo "|"
 	@ echo "+-------------------------------------------------------------------------------"
 
