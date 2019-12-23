@@ -59,7 +59,7 @@ _TODO: consider moving this to Makefile_
 
 ### Install Emscripten
 
-Emscripten is used to compile the C libraries to be compatible with WebAssembly.  This repo was tested with 1.37.35.
+Emscripten is used to compile the C libraries to be compatible with WebAssembly.  This repo was tested with 1.39.5.
 
 * [Emscripten Installation Instructions](https://kripken.github.io/emscripten-site/docs/getting_started/downloads.html#installation-instructions)
 
@@ -69,7 +69,12 @@ Emscripten is used to compile the C libraries to be compatible with WebAssembly.
 $ make
 ```
 
-Most of the work and time will be spent compiling the `libopusfile` C library and its dependencies `libopus` and `libogg`.  After those are built, the `OpusStreamDecoder` Emscripten Module builds in a few seconds.  `$ make clean` will not require rebuilding `libopusfile`, but `$ make clean-all` will.
+The Emscripten module builds in a few seconds, but most of the work will be spent configuring the dependencies `libopus`, `libogg`, and `libopusfile`. You may see the warnings (not errors) below, which don't prevent the build from succeeding.  It is not known whether these warnings adversly affect runtime use.
+
+- Don't have the functions lrint() and lrintf ()
+- Replacing these functions with a standard C cast
+- implicit conversion from 'unsigned int' to 'float'
+
 
 ### Build Errors
 
