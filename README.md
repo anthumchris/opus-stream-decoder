@@ -66,7 +66,7 @@ Emscripten is used to compile the C libraries to be compatible with WebAssembly.
 ### Run the Build
 
 ```
-$ make
+$ make clean dist
 ```
 
 The Emscripten module builds in a few seconds, but most of the work will be spent configuring the dependencies `libopus`, `libogg`, and `libopusfile`. You may see the warnings (not errors) below, which don't prevent the build from succeeding.  It is not known whether these warnings adversly affect runtime use.
