@@ -14,8 +14,8 @@ const thisScriptFolder = args[1].match(/^.*\//)[0];
 process.chdir(thisScriptFolder);
 
 const fs = require('fs');
-const decoderModule = require(thisScriptFolder+'opus-stream-decoder.js');
-const decoder = new decoderModule.OpusStreamDecoder({onDecode});
+const { OpusStreamDecoder } = require('./opus-stream-decoder.cjs.js')();
+const decoder = new OpusStreamDecoder({ onDecode });
 
 const opusInFile = args[2].startsWith('/')? args[2] : currentFolder+args[2];
 const outFolder = args[3].startsWith('/')? args[3] : currentFolder+args[3];
@@ -47,18 +47,17 @@ inFileStream
   if (!totalSamplesDecoded) {
     console.error('File could not be decoded.')
   } else {
-    console.log(
-      'Decoded '+totalSamplesDecoded+' samples.',
-      'Listen to decoded files: ',
-      pcmOutLeftFile.replace(currentFolder,''),
-      pcmOutRightFile.replace(currentFolder,'')
-    )
+    const leftFile = pcmOutLeftFile.replace(currentFolder,'');
+    const rightFile = pcmOutRightFile.replace(currentFolder,'');
+    console.log('DECODED:', totalSamplesDecoded, 'samples.');
+    console.log('  FILES:', leftFile, rightFile);
+    console.log('Use a command-line utility to listen. For example:\n');
+    console.log('    $ ffplay -f f32le -ar 48k -ac 1', leftFile);
   }
 }).on('error', err => {
   decoder.free();
   showError(err)
 });
-
 
 function onDecode(decodedPcm) {
   totalSamplesDecoded+= decodedPcm.samplesDecoded;
