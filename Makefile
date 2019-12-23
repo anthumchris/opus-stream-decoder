@@ -1,4 +1,6 @@
-WASM_MODULE_JS=dist/opus-stream-decoder.js
+WASM_MODULE_VANILLA=dist/opus-stream-decoder.js
+WASM_MODULE_CJS=dist/opus-stream-decoder.cjs.js
+WASM_MODULE_ESM=dist/opus-stream-decoder.mjs
 WASM_LIB=tmp/lib.bc
 OGG_CONFIG_TYPES=src/ogg/include/ogg/config_types.h
 OPUS_DECODE_TEST_FILE_URL=https://fetch-stream-audio.anthum.com/audio/save/opus-stream-decoder-test.opus
@@ -8,22 +10,30 @@ CONFIGURE_LIBOPUS=src/opus/configure
 CONFIGURE_LIBOGG=src/ogg/configure
 CONFIGURE_LIBOPUSFILE=src/opusfile/configure
 
+TEST_FILE_VANILLA=dist/test-opus-stream-decoder-vanilla.html
+TEST_FILE_ESM=dist/test-opus-stream-decoder-esm-module.html
+TEST_FILE_CJS=dist/test-opus-stream-decoder-cjs-module.js
+
 default: dist
 
 # Runs nodejs test with some audio files
-test-wasm-module: dist $(OPUS_DECODE_TEST_FILE)
+test-wasm-cjs: dist $(OPUS_DECODE_TEST_FILE)
 	@ mkdir -p tmp
-	@ echo "Testing 64 kbps Opus file..."
-	@ node dist/test-opus-stream-decoder.js $(OPUS_DECODE_TEST_FILE) tmp
+	@ echo "Testing 64 kbps Opus file with Common JS Module..."
+	@ node $(TEST_FILE_CJS) $(OPUS_DECODE_TEST_FILE) tmp
 
 .PHONY: native-decode-test
 
 clean: dist-clean wasmlib-clean configures-clean
 
-dist: wasm 
+dist: wasm-js wasm-cjs wasm-esm
 	@ cp src/test-opus-stream-decoder* dist
 dist-clean:
 	rm -rf dist/*
+
+wasm-esm: wasmlib $(WASM_MODULE_ESM)
+wasm-cjs: wasmlib $(WASM_MODULE_CJS)
+wasm-js: wasmlib $(WASM_MODULE_VANILLA)
 
 wasmlib: configures $(OGG_CONFIG_TYPES) $(WASM_LIB)
 wasmlib-clean: dist-clean
@@ -37,42 +47,79 @@ configures-clean: wasmlib-clean
 
 native-decode-test: $(OPUS_DECODE_TEST_FILE)
 
-wasm: wasmlib
+define WASM_EMCC_OPTS
+-O3 \
+-s NO_DYNAMIC_EXECUTION=1 \
+-s NO_FILESYSTEM=1 \
+-s EXTRA_EXPORTED_RUNTIME_METHODS="['cwrap']" \
+-s EXPORTED_FUNCTIONS="[ \
+    '_free', '_malloc' \
+  , '_opus_get_version_string' \
+  , '_opus_chunkdecoder_version' \
+  , '_opus_chunkdecoder_create' \
+  , '_opus_chunkdecoder_free' \
+  , '_opus_chunkdecoder_enqueue' \
+  , '_opus_chunkdecoder_decode_float_stereo_deinterleaved' \
+]" \
+--pre-js 'src/emscripten-pre.js' \
+--post-js 'src/emscripten-post.js' \
+-I src/opusfile/include \
+-I "src/ogg/include" \
+-I "src/opus/include" \
+src/opus_chunkdecoder.c \ 
+endef
+
+
+$(WASM_MODULE_ESM): 
 	@ mkdir -p dist
-	@ echo "Building Emscripten WebAssembly module $(WASM_MODULE_JS)..."
-	@ # Add emcc -g3 flag to produce .wast file for debugging.  Removes -O2 optimizations and produces larger files
-	@ # -O3 provides no marginal benefit over -O2 and takes longer to compile
+	@ echo "Building Emscripten WebAssembly ES Module $(WASM_MODULE_ESM)..."
 	@ emcc \
-		-o "$(WASM_MODULE_JS)" \
-	  -O3 \
-	  --llvm-lto 1 \
-	  -s WASM=1 \
-	  -s NO_DYNAMIC_EXECUTION=1 \
-	  -s NO_FILESYSTEM=1 \
-	  -s EXTRA_EXPORTED_RUNTIME_METHODS="['cwrap']" \
-	  -s EXPORTED_FUNCTIONS="[ \
-	      '_free', '_malloc' \
-	    , '_opus_get_version_string' \
-	    , '_opus_chunkdecoder_version' \
-	    , '_opus_chunkdecoder_create' \
-	    , '_opus_chunkdecoder_free' \
-	    , '_opus_chunkdecoder_enqueue' \
-	    , '_opus_chunkdecoder_decode_float_stereo_deinterleaved' \
-	  ]" \
-	  --pre-js 'src/emscripten-pre.js' \
-	  --post-js 'src/emscripten-post.js' \
-	  -I "src/opusfile/include" \
-	  -I "src/ogg/include" \
-	  -I "src/opus/include" \
-	  src/opus_chunkdecoder.c \
+		-o "$(WASM_MODULE_ESM)" \
+		-s EXPORT_ES6=1 \
+		-s MODULARIZE=1 \
+	  $(WASM_EMCC_OPTS) \
 	  $(WASM_LIB)
 	@ echo "+-------------------------------------------------------------------------------"
 	@ echo "|"
-	@ echo "|  Successfully built: $(WASM_MODULE_JS)"
+	@ echo "|  Successfully built ES Module: $(WASM_MODULE_ESM)"
 	@ echo "|"
-	@ echo "|  run \"$$ make test-wasm-module\" to verify"
+	@ echo "|  open \"$(TEST_FILE_ESM)\" to verify"
 	@ echo "|"
 	@ echo "+-------------------------------------------------------------------------------"
+
+
+$(WASM_MODULE_CJS):
+	@ mkdir -p dist
+	@ echo "Building Emscripten WebAssembly Common JS (CJS) module $(WASM_MODULE_CJS)..."
+	@ emcc \
+		-o "$(WASM_MODULE_CJS)" \
+		-s MODULARIZE=1 \
+	  $(WASM_EMCC_OPTS) \
+	  $(WASM_LIB)
+	@ echo "+-------------------------------------------------------------------------------"
+	@ echo "|"
+	@ echo "|  Successfully built Common JS Module: $(WASM_MODULE_CJS)"
+	@ echo "|"
+	@ echo "|  run \"$$ make test-wasm-cjs\" to verify"
+	@ echo "|"
+	@ echo "+-------------------------------------------------------------------------------"
+
+
+$(WASM_MODULE_VANILLA):
+	@ mkdir -p dist
+	@ echo "Building Emscripten WebAssembly module $(WASM_MODULE_VANILLA)..."
+	@ emcc \
+		-o "$(WASM_MODULE_VANILLA)" \
+	  $(WASM_EMCC_OPTS) \
+	  $(WASM_LIB)
+	@ echo "+-------------------------------------------------------------------------------"
+	@ echo "|"
+	@ echo "|  Successfully built Vanilla JS library: $(WASM_MODULE_VANILLA)"
+	@ echo "|"
+	@ echo "|  open \"$(TEST_FILE_VANILLA)\" to verify"
+	@ echo "|"
+	@ echo "+-------------------------------------------------------------------------------"
+
 
 $(WASM_LIB):
 	@ mkdir -p tmp

@@ -53,16 +53,18 @@ OpusStreamDecoder.prototype.ready = new Promise(function(resolve, reject) {
     resolve();
   });
 
+  // TODO this no longer works and throws error. Removing for now
+  //
   // Propagate error to OpusStreamDecoder.ready.catch()
   // WARNING: this is a hack based Emscripten's current abort() implementation
   // and could break in the future.
   // Rewrite existing abort(what) function to reject Promise before it executes.
-  var origAbort = this.abort;
-  this.abort = function(what) {
-    console.log('abort')
-    reject(Error(what));
-    origAbort.call(this, what);
-  }
+  // var origAbort = this.abort;
+  // this.abort = function(what) {
+  //   console.log('abort')
+  //   reject(Error(what));
+  //   origAbort.call(this, what);
+  // }
 });
 
 /*
