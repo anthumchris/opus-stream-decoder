@@ -1,143 +1,140 @@
-OPUS_DECODE_TEST_FILE_URL=https://fetch-stream-audio.anthum.com/audio/opus/decode-test-64kbps.opus
-OPUS_DECODE_TEST_FILE=tmp/decode-test-64kbps.opus
-
-NATIVE_DECODER_TEST=tmp/opus_chunkdecoder_test
-
-LIBOPUS_DIR=src/opus
-LIBOPUS_CONFIGURE=$(LIBOPUS_DIR)/configure
-LIBOPUS_MAKEFILE=$(LIBOPUS_DIR)/Makefile
-LIBOPUS_LIB=$(LIBOPUS_DIR)/.libs/libopus.dylib
-
-LIBOGG_DIR=src/ogg
-LIBOGG_CONFIGURE=$(LIBOGG_DIR)/configure
-LIBOGG_MAKEFILE=$(LIBOGG_DIR)/Makefile
-LIBOGG_LIB=$(LIBOGG_DIR)/src/.libs/libogg.dylib
-
-LIBOPUSFILE_DIR=src/opusfile
-LIBOPUSFILE_CONFIGURE=$(LIBOPUSFILE_DIR)/configure
-LIBOPUSFILE_MAKEFILE=$(LIBOPUSFILE_DIR)/Makefile
-LIBOPUSFILE_LIB=$(LIBOPUSFILE_DIR)/.libs/libopusfile.dylib
-
 WASM_MODULE_JS=dist/opus-stream-decoder.js
+WASM_LIB=tmp/lib.bc
+OGG_CONFIG_TYPES=src/ogg/include/ogg/config_types.h
+OPUS_DECODE_TEST_FILE_URL=https://fetch-stream-audio.anthum.com/audio/save/opus-stream-decoder-test.opus
+OPUS_DECODE_TEST_FILE=tmp/decode-test-64kbps.opus
+NATIVE_DECODER_TEST=tmp/opus_chunkdecoder_test
+CONFIGURE_LIBOPUS=src/opus/configure
+CONFIGURE_LIBOGG=src/ogg/configure
+CONFIGURE_LIBOPUSFILE=src/opusfile/configure
 
-DEPS_CFLAGS = -I$(PWD)/$(LIBOGG_DIR)/include -I$(PWD)/$(LIBOPUS_DIR)/include
-DEPS_LIBS = -L$(PWD)/$(LIBOGG_DIR)/src/.libs -L$(PWD)/$(LIBOPUS_DIR)/.libs -logg -lopus
-
-default: build-dist
-
-.PHONY: native-decode-test
-
-build-dist: build-libopusfile $(WASM_MODULE_JS)
-	@ cp src/test-opus-stream-decoder* dist
-
-build-wasm-module:
-build-libopusfile: build-libopus build-libogg $(LIBOPUSFILE_LIB)
-build-libopus: $(LIBOPUS_LIB)
-build-libogg: $(LIBOGG_LIB)
+default: dist
 
 # Runs nodejs test with some audio files
-test-wasm-module: build-dist $(OPUS_DECODE_TEST_FILE)
+test-wasm-module: dist $(OPUS_DECODE_TEST_FILE)
 	@ mkdir -p tmp
 	@ echo "Testing 64 kbps Opus file..."
 	@ node dist/test-opus-stream-decoder.js $(OPUS_DECODE_TEST_FILE) tmp
+
+.PHONY: native-decode-test
+
+clean: dist-clean wasmlib-clean configures-clean
+
+dist: wasm 
+	@ cp src/test-opus-stream-decoder* dist
+dist-clean:
+	rm -rf dist/*
+
+wasmlib: configures $(OGG_CONFIG_TYPES) $(WASM_LIB)
+wasmlib-clean: dist-clean
+	rm -rf $(WASM_LIB)
+
+configures: $(CONFIGURE_LIBOGG) $(CONFIGURE_LIBOPUS) $(CONFIGURE_LIBOPUSFILE)
+configures-clean: wasmlib-clean
+	rm -rf $(CONFIGURE_LIBOPUSFILE)
+	rm -rf $(CONFIGURE_LIBOPUS)
+	rm -rf $(CONFIGURE_LIBOGG)
+
+native-decode-test: $(OPUS_DECODE_TEST_FILE)
+
+wasm: wasmlib
+	@ mkdir -p dist
+	@ echo "Building Emscripten WebAssembly module $(WASM_MODULE_JS)..."
+	@ # Add emcc -g3 flag to produce .wast file for debugging.  Removes -O2 optimizations and produces larger files
+	@ # -O3 provides no marginal benefit over -O2 and takes longer to compile
+	@ emcc \
+		-o "$(WASM_MODULE_JS)" \
+	  -O3 \
+	  --llvm-lto 1 \
+	  -s WASM=1 \
+	  -s NO_DYNAMIC_EXECUTION=1 \
+	  -s NO_FILESYSTEM=1 \
+	  -s EXTRA_EXPORTED_RUNTIME_METHODS="['cwrap']" \
+	  -s EXPORTED_FUNCTIONS="[ \
+	      '_free', '_malloc' \
+	    , '_opus_get_version_string' \
+	    , '_opus_chunkdecoder_version' \
+	    , '_opus_chunkdecoder_create' \
+	    , '_opus_chunkdecoder_free' \
+	    , '_opus_chunkdecoder_enqueue' \
+	    , '_opus_chunkdecoder_decode_float_stereo_deinterleaved' \
+	  ]" \
+	  --pre-js 'src/emscripten-pre.js' \
+	  --post-js 'src/emscripten-post.js' \
+	  -I "src/opusfile/include" \
+	  -I "src/ogg/include" \
+	  -I "src/opus/include" \
+	  src/opus_chunkdecoder.c \
+	  $(WASM_LIB)
+	@ echo "+-------------------------------------------------------------------------------"
+	@ echo "|"
+	@ echo "|  Successfully built: $(WASM_MODULE_JS)"
+	@ echo "|"
+	@ echo "|  run \"$$ make test-wasm-module\" to verify"
+	@ echo "|"
+	@ echo "+-------------------------------------------------------------------------------"
+
+$(WASM_LIB):
+	@ mkdir -p tmp
+	@ echo "Building Ogg/Opus Emscripten Library $(WASM_LIB)..."
+	@ emcc \
+	  -o "$(WASM_LIB)" \
+	  -O0 \
+	  -D VAR_ARRAYS \
+	  -D OPUS_BUILD \
+	  --llvm-lto 1 \
+	  -s NO_DYNAMIC_EXECUTION=1 \
+	  -s NO_FILESYSTEM=1 \
+	  -s EXPORTED_FUNCTIONS="[ \
+	     '_op_read_float_stereo' \
+	  ]" \
+	  -I "src/opusfile/" \
+	  -I "src/opusfile/include" \
+	  -I "src/opusfile/src" \
+	  -I "src/ogg/include" \
+	  -I "src/opus/include" \
+	  -I "src/opus/celt" \
+	  -I "src/opus/celt/arm" \
+	  -I "src/opus/celt/dump_modes" \
+	  -I "src/opus/celt/mips" \
+	  -I "src/opus/celt/x86" \
+	  -I "src/opus/silk" \
+	  -I "src/opus/silk/arm" \
+	  -I "src/opus/silk/fixed" \
+	  -I "src/opus/silk/float" \
+	  -I "src/opus/silk/mips" \
+	  -I "src/opus/silk/x86" \
+	  src/opus/src/opus.c \
+	  src/opus/src/opus_multistream.c \
+	  src/opus/src/opus_multistream_decoder.c \
+	  src/opus/src/opus_decoder.c \
+	  src/opus/silk/*.c \
+	  src/opus/celt/*.c \
+	  src/ogg/src/*.c \
+	  src/opusfile/src/*.c
+	@ echo "+-------------------------------------------------------------------------------"
+	@ echo "|"
+	@ echo "|  Successfully built: $(WASM_LIB)"
+	@ echo "|"
+	@ echo "+-------------------------------------------------------------------------------"
+
+$(CONFIGURE_LIBOPUSFILE):
+	cd src/opusfile; ./autogen.sh
+$(CONFIGURE_LIBOPUS):
+	cd src/opus; ./autogen.sh
+$(CONFIGURE_LIBOGG):
+	cd src/ogg; ./autogen.sh
+
+$(OGG_CONFIG_TYPES):
+	cd src/ogg; emconfigure ./configure
+	# Remove a.out* files created by emconfigure
+	cd src/ogg; rm a.out*
+
 
 $(OPUS_DECODE_TEST_FILE):
 	@ mkdir -p tmp
 	@ echo "Downloading decode test file $(OPUS_DECODE_TEST_FILE_URL)..."
 	@ wget -q --show-progress $(OPUS_DECODE_TEST_FILE_URL) -O $(OPUS_DECODE_TEST_FILE)
-
-
-clean: clean-dist
-	@ echo "Run make clean-all to clean compiled C libraries if needed"
-
-clean-all: clean-libopusfile clean-libopus clean-libogg clean-dist
-	rm -rf tmp
-
-clean-libopusfile:
-	-cd $(LIBOPUSFILE_DIR); make clean 2>/dev/null; true
-	rm -rf $(LIBOPUSFILE_LIB)
-	rm -rf $(LIBOPUSFILE_MAKEFILE)
-	rm -rf $(LIBOPUSFILE_CONFIGURE)
-clean-libopus:
-	-cd $(LIBOPUS_DIR);     make clean 2>/dev/null; true
-	rm -rf $(LIBOPUS_LIB)
-	rm -rf $(LIBOPUS_MAKEFILE)
-	rm -rf $(LIBOPUS_CONFIGURE)
-clean-libogg:
-	-cd $(LIBOGG_DIR);      make clean 2>/dev/null; true
-	rm -rf $(LIBOGG_LIB)
-	rm -rf $(LIBOGG_MAKEFILE)
-	rm -rf $(LIBOGG_CONFIGURE)
-clean-dist:
-	@ echo "Removing dist/ folder..."
-	@ rm -rf dist
-
-$(WASM_MODULE_JS):
-	@ mkdir -p dist
-	@ echo "Building Emscripten WebAssembly module ${WASM_MODULE_JS}..."
-
-# Add emcc -g3 flag to produce .wast file for debugging.  Removes -O2 optimizations and produces larger files
-# -O3 provides no marginal benefit over -O2 and takes longer to compile
-	@ emcc \
-		-o "$(WASM_MODULE_JS)" \
-		-O3 \
-		--llvm-lto 1 \
-		-s WASM=1 \
-		-s NO_DYNAMIC_EXECUTION=1 \
-		-s NO_FILESYSTEM=1 \
-		-s EXTRA_EXPORTED_RUNTIME_METHODS="['cwrap']" \
-		-s EXPORTED_FUNCTIONS="[ \
-				'_free', '_malloc' \
-			, '_opus_get_version_string' \
-			, '_opus_chunkdecoder_version' \
-			, '_opus_chunkdecoder_create' \
-			, '_opus_chunkdecoder_free' \
-			, '_opus_chunkdecoder_enqueue' \
-			, '_opus_chunkdecoder_decode_float_stereo_deinterleaved' \
-		]" \
-		--pre-js 'src/emscripten-pre.js' \
-		--post-js 'src/emscripten-post.js' \
-		-I "$(LIBOPUS_DIR)/include" \
-		-I "$(LIBOGG_DIR)/include" \
-		-I "$(LIBOPUSFILE_DIR)/include" \
-		"$(LIBOPUS_LIB)" \
-		"$(LIBOGG_LIB)" \
-		"$(LIBOPUSFILE_LIB)" \
-		src/opus_chunkdecoder.c
-
-	@ echo "Successfully built WASM module: $(WASM_MODULE_JS)"
-
-
-$(LIBOPUSFILE_LIB): $(LIBOPUSFILE_MAKEFILE)
-	cd $(LIBOPUSFILE_DIR); emmake make
-$(LIBOPUSFILE_MAKEFILE): $(LIBOPUSFILE_CONFIGURE)
-	cd $(LIBOPUSFILE_DIR); \
-	export DEPS_CFLAGS="$(DEPS_CFLAGS)" DEPS_LIBS="$(DEPS_LIBS)"; \
-	emconfigure ./configure --disable-http --disable-doc --disable-examples --disable-largefile CFLAGS='-O2'
-	# Remove a.out* files created by emconfigure
-	cd $(LIBOPUSFILE_DIR); rm a.out*
-$(LIBOPUSFILE_CONFIGURE):
-	cd $(LIBOPUSFILE_DIR); ./autogen.sh
-
-
-$(LIBOPUS_LIB): $(LIBOPUS_MAKEFILE)
-	cd $(LIBOPUS_DIR); emmake make
-$(LIBOPUS_MAKEFILE): $(LIBOPUS_CONFIGURE)
-	cd $(LIBOPUS_DIR); emconfigure ./configure --disable-doc --disable-extra-programs --disable-intrinsics --disable-rtcd CFLAGS='-O2'
-	# Remove a.out* files created by emconfigure
-	cd $(LIBOPUS_DIR); rm a.out*
-$(LIBOPUS_CONFIGURE):
-	cd $(LIBOPUS_DIR); ./autogen.sh
-
-
-$(LIBOGG_LIB): $(LIBOGG_MAKEFILE)
-	cd $(LIBOGG_DIR); emmake make
-$(LIBOGG_MAKEFILE): $(LIBOGG_CONFIGURE)
-	cd $(LIBOGG_DIR); emconfigure ./configure
-	# Remove a.out* files created by emconfigure
-	cd $(LIBOGG_DIR); rm a.out*
-$(LIBOGG_CONFIGURE):
-	cd $(LIBOGG_DIR); ./autogen.sh
 
 
 native-decode-test: $(OPUS_DECODE_TEST_FILE)

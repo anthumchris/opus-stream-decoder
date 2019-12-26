@@ -1,6 +1,6 @@
 {
   "name": "opus-stream-decoder",
-  "version": "1.2.3",
+  "version": "1.2.4",
   "description": "Decode Opus audio streams immediately in chunks",
   "main": "dist/opus-stream-decoder.js",
   "files": [

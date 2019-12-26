@@ -47,12 +47,12 @@ inFileStream
   if (!totalSamplesDecoded) {
     console.error('File could not be decoded.')
   } else {
-    console.log(
-      'Decoded '+totalSamplesDecoded+' samples.',
-      'Listen to decoded files: ',
-      pcmOutLeftFile.replace(currentFolder,''),
-      pcmOutRightFile.replace(currentFolder,'')
-    )
+    const leftFile = pcmOutLeftFile.replace(currentFolder,'');
+    const rightFile = pcmOutRightFile.replace(currentFolder,'');
+    console.log('DECODED:', totalSamplesDecoded, 'samples.');
+    console.log('  FILES:', leftFile, rightFile);
+    console.log('Use a command-line utility to listen. For example:\n');
+    console.log('    $ ffplay -f f32le -ar 48k -ac 1', leftFile);
   }
 }).on('error', err => {
   decoder.free();
