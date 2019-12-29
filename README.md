@@ -6,6 +6,15 @@ _Note: This repository was forked from [AnthumChris/fetch-stream-audio](https://
 
 Pre-compiled binaries and full examples are included in the `dist/` folder.  The `OpusStreamDecoder` API was designed to be simple and the pseudocode below explains its complete usage:
 
+If using a front-end build system, you can obtain `OpusStreamDecoder` via `require` or `import` syntaxes:
+
+```js
+const { OpusStreamDecoder } = require('opus-stream-decoder');
+import { OpusStreamDecoder } from 'opus-stream-decoder';
+```
+
+Otherwise, include the script bfore you instantiate `OpusStreamDecoder`.
+
 ```javascript
 <script src="opus-stream-decoder.js"></script>
 <script>
