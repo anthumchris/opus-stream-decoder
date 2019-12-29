@@ -5,6 +5,7 @@ Module['OpusStreamDecoder'] = OpusStreamDecoder;
 
 // nodeJS only
 if ('undefined' !== typeof global && exports) {
+  module.exports.OpusStreamDecoder = OpusStreamDecoder;
   // uncomment this for performance testing
   // var {performance} = require('perf_hooks');
   // global.performance = performance;

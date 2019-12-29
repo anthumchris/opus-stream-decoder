@@ -14,7 +14,7 @@ const thisScriptFolder = args[1].match(/^.*\//)[0];
 process.chdir(thisScriptFolder);
 
 const fs = require('fs');
-const { OpusStreamDecoder } = require('./opus-stream-decoder.cjs.js')();
+const { OpusStreamDecoder } = require('./opus-stream-decoder.js');
 const decoder = new OpusStreamDecoder({ onDecode });
 
 const opusInFile = args[2].startsWith('/')? args[2] : currentFolder+args[2];
