@@ -13,7 +13,7 @@ const { OpusStreamDecoder } = require('opus-stream-decoder');
 import { OpusStreamDecoder } from 'opus-stream-decoder';
 ```
 
-Otherwise, include the script bfore you instantiate `OpusStreamDecoder`.
+Otherwise, include the script before you instantiate `OpusStreamDecoder`.
 
 ```javascript
 <script src="opus-stream-decoder.js"></script>
