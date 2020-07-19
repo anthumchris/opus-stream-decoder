@@ -1,0 +1,27 @@
+name: Build
+
+on:
+  push:
+    branches: [ master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: true
+    - name: Emscripten SDK
+      run: |
+        git clone https://github.com/emscripten-core/emsdk.git
+        ./emsdk/emsdk install latest
+        ./emsdk/emsdk activate latest
+    - name: Build
+      run: |
+        source ./emsdk/emsdk_env.sh
+        make clean dist
+    - name: Publish
+      run: |
+        npm publish --access public
+      env:
+        NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
